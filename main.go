@@ -3,6 +3,7 @@ package main
 import (
 "fmt"
 "os"
+"flag"
 "io/ioutil"
 "strings"
 
@@ -12,18 +13,19 @@ import (
 const BRAINFUCK_VERSION = "v1.0"
 
 const (
-	KErrorNone 	int				= 0
-	KErroSyntaxError 	int		= -1
-	KMismatchedBrackets 	int	= -2
-	KProblemReadingSourceFile int	= -3
 
+	KErrorNone = 0
 )
 
 const (
-	DEFAULT_MEMORY_SIZE = 30000 // byte
-	DEFAULT_CODE_SIZE = 10000 // bytes
+	DEFAULT_MEMORY_SIZE = 30000 // bytes
+	DEFAULT_CODE_SIZE 	= 10000 // bytes
+	DEFAULT_SOURCE_FILE = "A.BF" // to be changed
+)
 
-	TEST_FILE = "a.txt"
+var (
+	sourceFileName string = DEFAULT_SOURCE_FILE
+	memorySizePtr	     *int    
 )
 
 var (
@@ -33,32 +35,35 @@ var (
 	instructions []uint8
 
 	// useful limits and sizes
-	memorySize int
-	codeSize int
-	fileSize int
-	
-	loopReturns [10]int // statement indexes for loop return
+	codeSize int 		= DEFAULT_CODE_SIZE
+	sourceFileSize int
+	fileSize 	   int
 )
+
 
 func main () {
 	displayBanner ()
 
+	// read command line arguments, 'MEMORY' & 'FILE'
+	flag.StringVar (&sourceFileName, "file", DEFAULT_SOURCE_FILE,"Name of default code file")
 
-	memorySize = DEFAULT_MEMORY_SIZE
-	codeSize = DEFAULT_CODE_SIZE
+	
+	memorySizePtr = flag.Int ("memory", DEFAULT_MEMORY_SIZE, "Working memory size in bytes")
+	flag.Parse ()
 
-	fmt.Printf ("Initialising memory block : %d bytes\n", memorySize)
+	fmt.Printf ("Reading from source file '%s' ...\n", strings.ToUpper (sourceFileName))
+	fmt.Printf ("Initialising memory block : %d bytes\n", *memorySizePtr)
 
-	if memorySize <= 1000 {
-		fmt.Println ("Memory block specificed is too small.")
+	if *memorySizePtr <= 1000 {
+		fmt.Println ("Memory block specified is too small.")
 		os.Exit(-2)
 	}
 
 	// init memory block
-	memory = make ([]uint8, memorySize, memorySize)
+	memory = make ([]uint8, *memorySizePtr, *memorySizePtr)
 	
 	fmt.Println ("Reading File ....")
-	if data, err := readFileToMemory (TEST_FILE); err == nil {
+	if data, err := readFileToMemory (sourceFileName); err == nil {
 		codeSize = len(data)
 		
 		instructions = make ([]uint8, codeSize, codeSize)
@@ -75,7 +80,7 @@ func main () {
 
 		}
 	} else {
-		fmt.Println ("Problem reading source file '%s'\n", strings.ToUpper (TEST_FILE))
+		fmt.Println ("Problem reading source file '%s'\n", strings.ToUpper (sourceFileName))
 	}
 }
 
@@ -85,7 +90,7 @@ func displayBanner () {
 }
 
 func readFileToMemory (filename string) ([]uint8, error) {
-	file, err := os.Open (TEST_FILE)
+	file, err := os.Open (sourceFileName)
 	defer file.Close ()
 	
 	if err == nil {
@@ -165,7 +170,7 @@ func resetPtrs () {
 
 // '>' command 
 func incrementDataPtr () {
-	if memoryPtr < memorySize - 1 {
+	if memoryPtr < *memorySizePtr - 1 {
 		memoryPtr++
 	}
 	instructionPtr++
@@ -239,5 +244,12 @@ fmt.Printf ("%d:", instructionPtr)
 		fmt.Printf ("%d ", memory[i])
 	}
 	fmt.Println ()
+}
+
+func showStatus (status int) {
+	
+	if (status != KErrorNone) {
+		os.Exit (-status)
+	}
 }
     
