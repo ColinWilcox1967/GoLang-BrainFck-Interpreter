@@ -12,15 +12,23 @@ import (
 	
 const BRAINFUCK_VERSION = "v1.0"
 
+// error status
 const (
-
-	KErrorNone = 0
+	KErrorNone 					 		= 0
+	KErrorUnableToOpenFile 		 		= 1
+	KErrorMemoryBlockSizeToSmall 		= 2
+	KErrorProblemParsingFile     		= 3
+	KErrorSyntaxError			 		= 4
+	KErrorBracketsNotPaired      		= 5
+	KErrorUnexpectedClosingBracketFound = 6
+	KErrorInvalidCharacterFound			= 7
 )
 
 const (
 	DEFAULT_MEMORY_SIZE = 30000 // bytes
 	DEFAULT_CODE_SIZE 	= 10000 // bytes
 	DEFAULT_SOURCE_FILE = "A.BF" // to be changed
+	MINIMUM_MMEORY_BLOCK_SIZE = 1000 // min menory size
 )
 
 var (
@@ -54,9 +62,8 @@ func main () {
 	fmt.Printf ("Reading from source file '%s' ...\n", strings.ToUpper (sourceFileName))
 	fmt.Printf ("Initialising memory block : %d bytes\n", *memorySizePtr)
 
-	if *memorySizePtr <= 1000 {
-		fmt.Println ("Memory block specified is too small.")
-		os.Exit(-2)
+	if *memorySizePtr <= MINIMUM_MMEORY_BLOCK_SIZE {
+		showStatus (KErrorMemoryBlockSizeToSmall, "", *memorySizePtr)
 	}
 
 	// init memory block
@@ -70,17 +77,16 @@ func main () {
 		instructionPtr = 0
 
 		fmt.Println ("Parsing file ...")
-		if status := parseFile (data); !status {
-			fmt.Println ("Problem parse data file")
+		if status := parseFile (data); status != KErrorNone {
+			showStatus (status, sourceFileName,0)
 		} else {
 			fmt.Println ("Executing file ...")
-			if status := executeFile (); !status {
-				fmt.Println ("Syntax error")
+			if status := executeFile (); status != KErrorNone {
+				showStatus (KErrorSyntaxError, sourceFileName,0)
 			}
-
 		}
 	} else {
-		fmt.Println ("Problem reading source file '%s'\n", strings.ToUpper (sourceFileName))
+		showStatus (KErrorUnableToOpenFile, sourceFileName,0)
 	}
 }
 
@@ -103,7 +109,7 @@ func readFileToMemory (filename string) ([]uint8, error) {
 }
 
 
-func parseFile (data []uint8) bool {
+func parseFile (data []uint8) int {
 	var sourceIndex int
 	var targetIndex int
 	var bracketCount int
@@ -122,7 +128,7 @@ func parseFile (data []uint8) bool {
 			}
 
 			if bracketCount < 0 {
-				return false // too many closing brackets first
+				showStatus (KErrorUnexpectedClosingBracketFound,"",0)
 			}
 
 			targetIndex++
@@ -131,17 +137,15 @@ func parseFile (data []uint8) bool {
 	}
 
 	if bracketCount != 0 {
-		fileSize = 0
-		return false // brackets dont match
-
+		showStatus (KErrorBracketsNotPaired,"",0)
 	}
 
 	fileSize = targetIndex
 
-	return true
+	return KErrorNone
 }
 
-func executeFile () bool {
+func executeFile () int {
 	
 	resetPtrs ()
 	for instructionPtr < fileSize {
@@ -156,11 +160,11 @@ func executeFile () bool {
 			case '[': skipForwardIfZero ()
 			case ']': skipBackwardIfNotZero ()
 			default:
-				return false
+				return KErrorInvalidCharacterFound
 		}
 	}
 
-	return true
+	return KErrorNone
 }
 
 func resetPtrs () {
@@ -239,17 +243,40 @@ func validChar (ch uint8) bool {
 }
 
 func dump (){
-fmt.Printf ("%d:", instructionPtr)
+	fmt.Printf ("%d:", instructionPtr)
 	for i:=0; i <5; i++{
 		fmt.Printf ("%d ", memory[i])
 	}
 	fmt.Println ()
 }
 
-func showStatus (status int) {
-	
-	if (status != KErrorNone) {
-		os.Exit (-status)
-	}
+func showStatus (status int, extraInfoString string, extraInfoValue int) {
+
+	var message string = "\nError: "
+
+	if status != KErrorNone {
+		switch (status) {
+			case KErrorUnableToOpenFile: 
+										message += fmt.Sprintf ("Unable to open file '%s'\n", strings.ToUpper(extraInfoString))
+			case KErrorMemoryBlockSizeToSmall:
+										message += fmt.Sprintf ("Specified memory size is too small (Minimum is %d bytes)\n", extraInfoValue) 
+			case KErrorProblemParsingFile:
+										message += fmt.Sprintf ("Problem parsing file '%s'\n", strings.ToUpper(extraInfoString))
+			case KErrorSyntaxError:
+										message += fmt.Sprintf ("Syntax error in file\n")
+			case KErrorBracketsNotPaired:
+										message += fmt.Sprintf ("Mismatched opening and closing brackets\n")
+			case KErrorUnexpectedClosingBracketFound:
+										message += fmt.Sprintf ("Closing backet found before any opening bracket\n")
+			case KErrorInvalidCharacterFound:
+									    message += fmt.Sprintf ("Invalid character found whilst executing code : '%s'\n", extraInfoString)
+			default:
+				// shouldnt get here but catch it anyway
+				fmt.Println ("Unknown Error Detected (%d)\n", status)
+		}
+
+		fmt.Println (message)
+		os.Exit(status)
+	}	
 }
-    
+
