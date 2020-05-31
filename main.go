@@ -46,6 +46,7 @@ var (
 	codeSize int 		= DEFAULT_CODE_SIZE
 	sourceFileSize int
 	fileSize 	   int
+	nestingLevel   int // count of the bracket nesting level from the root
 )
 
 
@@ -149,7 +150,7 @@ func executeFile () int {
 	
 	resetPtrs ()
 	for instructionPtr < fileSize {
-		dump()
+	
 		switch instructions[instructionPtr] {
 			case '+': incrementValueAtDataPtr ()
  			case '-': decrementValueAtDataPtr ()
@@ -170,6 +171,7 @@ func executeFile () int {
 func resetPtrs () {
 	instructionPtr = 0
 	memoryPtr = 0
+	nestingLevel = 0
 }
 
 // '>' command 
@@ -203,7 +205,7 @@ func decrementValueAtDataPtr () {
 
 // '.'
 func outputByte () {
-	fmt.Printf("%d ", memory[memoryPtr])
+	fmt.Printf("%c", memory[memoryPtr])
 	instructionPtr++
 }
 
@@ -218,34 +220,61 @@ func inputByte () {
 
 // '[' command
 func skipForwardIfZero () {
+	if memory[memoryPtr] == 0 {
+		// skip to byte after matching closing bracket
+		var openBracketCount, closingBracketCount int
+		var foundMatchingBracket bool = false
 
-	if memory[memoryPtr] != 0 {
-		instructionPtr++
-	} else {
-		for instructions[instructionPtr] != ']'  && (instructionPtr < len(instructions)) {
+		for !foundMatchingBracket && (instructionPtr < fileSize){
+			if instructions[instructionPtr] == '[' {
+				openBracketCount++
+			} else if instructions[instructionPtr] == ']' {
+				closingBracketCount++
+			} 
 			instructionPtr++
+			if (openBracketCount == closingBracketCount) {
+				foundMatchingBracket = true;
+			}
 		}
+	} else {
+		// move to next byte
 		instructionPtr++
 	}
-	
 }
 
 // ']' command
 func skipBackwardIfNotZero () {
-	for instructions[instructionPtr] != '[' && (instructionPtr >= 0) { 
-		instructionPtr--
-	}	
+	if instructions[instructionPtr] != 0 {
+		var foundMatchingBracket bool = false
+		var nestingLevel int = 0
+		for instructionPtr >= 0 && !foundMatchingBracket {
+			if instructions[instructionPtr] == '[' {
+				nestingLevel++
+			} else if instructions[instructionPtr] == ']' {
+				nestingLevel--
+			}
+
+			if (nestingLevel == 0) {
+				foundMatchingBracket = true
+			} else {
+				instructionPtr--
+			}
+
+		}
+	} else {
+		instructionPtr++
+	}
+
 }
 
 func validChar (ch uint8) bool {
-	
 	return strings.IndexByte ("+-.,[]<>", ch) != -1
 }
 
 func dump (){
 	fmt.Printf ("%d:", instructionPtr)
 	for i:=0; i <5; i++{
-		fmt.Printf ("%d ", memory[i])
+		fmt.Printf ("%02d ", memory[i])
 	}
 	fmt.Println ()
 }
